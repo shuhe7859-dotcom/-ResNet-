@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>垃圾分类 ResNet18 + 大模型融合系统</title>
+<style>
+  :root {
+    --primary: #165DFF;
+    --primary-dark: #0e42d6;
+    --primary-light: #e8f0ff;
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --text: #1d2129;
+    --text-secondary: #86909c;
+    --border: #e5e6eb;
+    --shadow: 0 2px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 24px rgba(0,0,0,0.10);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #0b1b3d 0%, #165DFF 100%);
+    color: #fff; padding: 32px 0 28px; text-align: center;
+    box-shadow: 0 2px 16px rgba(22,93,255,0.18);
+  }
+  .header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: 1px; }
+  .header .subtitle { font-size: 0.9rem; opacity: 0.78; margin-top: 6px; }
+
+  /* Container */
+  .container { max-width: 860px; margin: 0 auto; padding: 28px 18px 40px; }
+
+  /* Upload Card */
+  .upload-card {
+    background: var(--card); border: 2px dashed #c5cdd8;
+    border-radius: var(--radius); padding: 40px 20px;
+    text-align: center; cursor: pointer;
+    transition: all 0.3s ease; box-shadow: var(--shadow);
+  }
+  .upload-card:hover { border-color: var(--primary); background: #fafbff; box-shadow: var(--shadow-lg); }
+  .upload-card.drag-over { border-color: var(--primary); background: var(--primary-light); transform: scale(1.01); }
+  .upload-card .icon { font-size: 2.6rem; margin-bottom: 10px; display: block; }
+  .upload-card .hint { font-size: 0.95rem; color: var(--text-secondary); }
+  .upload-card .hint strong { color: var(--primary); }
+  .upload-card .hint-sub { font-size: 0.78rem; color: #b0b8c5; margin-top: 6px; }
+  #fileInput { display: none; }
+
+  /* Controls */
+  .controls {
+    display: flex; align-items: center; gap: 16px;
+    margin: 22px 0; flex-wrap: wrap;
+  }
+  .toggle-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.9rem; cursor: pointer; user-select: none;
+    color: var(--text-secondary); font-weight: 500;
+    background: var(--card); padding: 10px 18px; border-radius: 30px;
+    border: 1px solid var(--border);
+    transition: all 0.25s;
+  }
+  .toggle-label:hover { border-color: var(--primary); }
+  .toggle-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+
+  .btn {
+    padding: 11px 30px; font-size: 0.93rem; font-weight: 600;
+    background: var(--primary); color: #fff; border: none;
+    border-radius: 30px; cursor: pointer; letter-spacing: 0.5px;
+    transition: all 0.25s; box-shadow: 0 2px 10px rgba(22,93,255,0.25);
+  }
+  .btn:hover { background: var(--primary-dark); box-shadow: 0 4px 18px rgba(22,93,255,0.35); transform: translateY(-1px); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { background: #c9cdd4; box-shadow: none; cursor: not-allowed; transform: none; }
+
+  /* Result Cards */
+  .hidden { display: none !important; }
+  .result-grid { display: grid; gap: 18px; margin-top: 8px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .card-header {
+    font-size: 0.88rem; font-weight: 700; padding: 14px 20px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #f0f1f3;
+  }
+  .card-header.resnet  { background: #f6f8ff; color: #165DFF; }
+  .card-header.preview { background: #fafafa; color: #1d2129; }
+  .card-header.llm     { background: #f3fbf6; color: #00b42a; }
+  .card-header .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .card-header.resnet  .dot { background: #165DFF; }
+  .card-header.preview .dot { background: #86909c; }
+  .card-header.llm     .dot { background: #00b42a; }
+
+  .card-body { padding: 18px 20px; }
+  .card-body img { max-width: 100%; max-height: 320px; border-radius: var(--radius-sm); display: block; margin: 0 auto; }
+
+  /* Results */
+  .result-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid #f5f6f7;
+  }
+  .result-item:last-child { border-bottom: none; }
+  .result-label { font-weight: 600; color: var(--text); font-size: 0.9rem; }
+  .result-value { font-weight: 700; font-size: 0.92rem; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .badge {
+    display: inline-block; padding: 4px 14px; border-radius: 20px;
+    font-size: 0.82rem; font-weight: 700;
+  }
+  .badge-resnet { background: #e8f0ff; color: #165DFF; }
+  .badge-llm    { background: #e8faf0; color: #00b42a; font-size: 0.95rem; padding: 5px 18px; }
+
+  /* Confidence Bar */
+  .conf-bar-wrap { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+  .conf-bar-outer { flex: 1; height: 12px; border-radius: 6px; background: #eef0f4; overflow: hidden; }
+  .conf-bar-inner { display: block; height: 100%; border-radius: 6px; min-width: 3px; transition: width 0.6s ease; }
+  .conf-bar-inner.t1 { background: linear-gradient(90deg, #0d42d6, #165DFF, #4080ff); box-shadow: 0 0 6px rgba(22,93,255,0.35); }
+  .conf-bar-inner.t2 { background: linear-gradient(90deg, #4080ff, #6aa1ff); }
+  .conf-bar-inner.t3 { background: linear-gradient(90deg, #8aafff, #b4ccf6); }
+  .conf-pct { font-weight: 700; font-size: 0.82rem; min-width: 52px; text-align: right; color: var(--text-secondary); }
+
+  /* Info Block */
+  .info-block {
+    background: #f8fafb; border: 1px solid #f0f1f3;
+    border-radius: var(--radius-sm); padding: 14px 16px; margin-top: 8px;
+    line-height: 1.75; font-size: 0.9rem;
+  }
+  .info-block .info-title { font-weight: 700; font-size: 0.85rem; color: var(--primary); margin-bottom: 6px; }
+
+  /* Footer */
+  .footer {
+    text-align: center; padding: 24px 20px; font-size: 0.8rem;
+    color: var(--text-secondary); border-top: 1px solid var(--border);
+    margin-top: 36px;
+  }
+
+  @media (max-width: 640px) {
+    .container { padding: 16px 10px; }
+    .header h1 { font-size: 1.25rem; }
+    .result-item { flex-direction: column; align-items: flex-start; gap: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>垃圾分类 ResNet18 + 大模型融合系统</h1>
+  <div class="subtitle">ResNet18 视觉粗分类 + DeepSeek 语义精判</div>
+</div>
+
+<div class="container">
+
+  <!-- Upload -->
+  <div class="upload-card" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+    <span class="icon">&#128269;</span>
+    <div class="hint">拖拽垃圾图片到此处 或 <strong>点击选择文件</strong></div>
+    <div class="hint-sub">支持 JPG / PNG / BMP / WEBP，最大 16MB</div>
+  </div>
+  <input type="file" id="fileInput" accept="image/*">
+
+  <!-- Controls -->
+  <div class="controls">
+    <label class="toggle-label">
+      <input type="checkbox" id="toggleLLM" checked> 启用大模型融合
+    </label>
+    <button class="btn" id="btnPredict" disabled>开始识别</button>
+  </div>
+
+  <!-- Results -->
+  <div class="result-grid hidden" id="resultArea">
+    <!-- Preview -->
+    <div class="card">
+      <div class="card-header preview"><span class="dot"></span>图片预览</div>
+      <div class="card-body" style="text-align:center;"><img id="previewImg" src="" alt=""></div>
+    </div>
+    <!-- ResNet -->
+    <div class="card">
+      <div class="card-header resnet"><span class="dot"></span>ResNet18 识别结果</div>
+      <div class="card-body" id="resnetResult"></div>
+    </div>
+    <!-- LLM -->
+    <div class="card hidden" id="llmCard">
+      <div class="card-header llm"><span class="dot"></span>大模型融合结果</div>
+      <div class="card-body" id="llmResult"></div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">垃圾分类 ResNet18 + 大模型融合系统</div>
+
+<script>
+  const uploadZone = document.getElementById('uploadZone');
+  const fileInput = document.getElementById('fileInput');
+  const btnPredict = document.getElementById('btnPredict');
+  const toggleLLM = document.getElementById('toggleLLM');
+  const resultArea = document.getElementById('resultArea');
+  const previewImg = document.getElementById('previewImg');
+  const resnetResult = document.getElementById('resnetResult');
+  const llmCard = document.getElementById('llmCard');
+  const llmResult = document.getElementById('llmResult');
+  let selectedFile = null;
+
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file.type.startsWith('image/')) return;
+    selectedFile = file;
+    btnPredict.disabled = false;
+    previewImg.src = URL.createObjectURL(file);
+    resultArea.classList.remove('hidden');
+    resnetResult.textContent = '点击「开始识别」进行分析';
+    llmCard.classList.add('hidden');
+  }
+
+  function confRow(label, cls, conf, tier) {
+    const w = Math.round(conf * 100);
+    return `<div class="result-item">
+      <span class="result-label">${label}</span>
+      <span class="result-value">
+        <span class="badge badge-resnet">${cls}</span>
+        <span class="conf-bar-wrap">
+          <span class="conf-bar-outer"><span class="conf-bar-inner t${tier}" style="width:${w}%"></span></span>
+          <span class="conf-pct">${(conf*100).toFixed(2)}%</span>
+        </span>
+      </span>
+    </div>`;
+  }
+
+  btnPredict.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    btnPredict.disabled = true;
+    resnetResult.textContent = '推理中...';
+
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+    formData.append('use_llm', toggleLLM.checked ? '1' : '0');
+
+    try {
+      const resp = await fetch('/predict', { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (data.error) { resnetResult.textContent = '错误: ' + data.error; return; }
+
+      const r = data.resnet;
+      let bars = '';
+      r.top3.forEach((item, i) => {
+        bars += confRow('Top ' + (i+1), item.class, item.confidence, i+1);
+      });
+      resnetResult.innerHTML = `
+        <div class="result-item" style="border-bottom:2px solid #e5e6eb;padding-bottom:12px;">
+          <span class="result-label">预测类别</span>
+          <span class="result-value" style="font-size:1.1rem;color:#165DFF;">${r.top1.class}</span>
+        </div>
+        ${bars}`;
+
+      if (data.llm) {
+        llmCard.classList.remove('hidden');
+        const llm = data.llm;
+        llmResult.innerHTML = `
+          <div class="result-item" style="border-bottom:2px solid #e5e6eb;padding-bottom:12px;">
+            <span class="result-label">最终判定</span>
+            <span class="badge badge-llm">${llm.final_class}</span>
+          </div>
+          <div class="info-block">
+            <div class="info-title">投放指南</div>
+            ${llm.disposal_guide}
+          </div>
+          <div class="info-block" style="margin-top:8px;">
+            <div class="info-title">环保科普</div>
+            ${llm.eco_tip}
+          </div>`;
+      }
+    } catch (err) {
+      resnetResult.textContent = '请求失败: ' + err.message;
+    } finally {
+      btnPredict.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>

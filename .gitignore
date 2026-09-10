@@ -1,0 +1,40 @@
+# ==================== Python ====================
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.idea/
+.vscode/
+
+# ==================== 敏感信息（切勿提交） ====================
+.env
+*.env
+secrets.json
+*api_key*
+
+# ==================== 数据集（体积大，请自行下载 TrashNet） ====================
+数据集/
+dataset/
+data/
+*.zip
+
+# ==================== 模型权重与训练产物 ====================
+# 权重文件体积大，请通过训练脚本自行生成；训练日志体积小，随仓库提交
+best_model.pdparams
+*.pdparams
+*.pdopt
+vdl_logs/
+
+# ==================== 打包与构建产物 ====================
+build/
+dist/
+*.spec
+*.exe
+
+# ==================== 运行期临时文件 ====================
+static/uploads/*
+!static/uploads/.gitkeep
+temp/
+*temp_test.html

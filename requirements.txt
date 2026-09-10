@@ -1,0 +1,14 @@
+# ==================== 深度学习框架 ====================
+# CPU 版本安装：pip install paddlepaddle==2.6.1 -i https://mirror.baidu.com/pypi/simple
+# GPU 版本安装：pip install paddlepaddle-gpu==2.6.1 -i https://mirror.baidu.com/pypi/simple
+paddlepaddle>=2.5.0
+
+# ==================== 训练可视化 ====================
+visualdl>=2.5.0
+
+# ==================== Web 服务 ====================
+Flask>=2.2.0
+
+# ==================== 图像处理 ====================
+Pillow>=9.5.0
+numpy>=1.23.0
